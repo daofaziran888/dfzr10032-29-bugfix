@@ -66,6 +66,36 @@ npm run dev
 | 数据流转编排 | `flow` | 流转管道 | 管道编号、管道名称、起始节点 |
 | 数据血缘追踪 | `lineage` | 血缘关系 | 关系编号、上游节点、下游节点 |
 | 采集报告 | `report` | 采集报告 | 报告编号、采集源、统计周期 |
+| 采集登记迁移 | `migration`（SQLite 独立库） | 迁移对账、来源地址版本、待执行计划、采样领取 | 源端编号、计划编号、绑定状态、地址版本 |
+
+## 采集登记迁移（SQLite）
+
+数据源配置与采集计划的存量从内存样本表迁移到独立的 SQLite 库（默认
+`backend/data/migration.db`，可用环境变量 `MIGRATION_DB` 覆盖），原内存模块不受影响。
+
+- 对账数据集：`POST /api/migration/reconciliation/build` 从样本表构建，区分
+  `LANDED 已落库` 与 `REVIEW 待核对`；重复构建只补缺，已确认记录与源端地址不会被种子覆盖。
+- 绑定口径：仅承认“关联任务与源端编号完全一致”的精确匹配，或值班员通过
+  `POST /api/migration/mappings` 提供的明确任务与来源对照；没有对应源的计划只留核对记录，
+  不会分配到同编号的其他来源。
+- 地址更正：`POST /api/migration/sources/{源端编号}/address-correction` 生成新确认版本；
+  待执行计划保留生成/受理时确认的地址快照，采样领取（`POST /api/migration/dispatch/claim-next`）
+  会说明实际使用的是哪一版地址。
+- 旧阶段兼容：`POST /api/migration/legacy/intake` 继续接收状态/排期记录，是否向旧登记处
+  报送由 `GET|POST /api/migration/legacy/reporting` 控制；原编号、原状态可通过
+  `GET /api/migration/compatibility/{编号}` 查询。
+- 受理与未派发解释：`GET /api/migration/plans/{计划编号}/admission` 查此刻可否受理及
+  采样地址版本；`GET /api/migration/plans/{计划编号}/undispatched` 解释无来源计划为何不派发，
+  数据全部落 SQLite，进程重启后读到同一份已确认版本。
+
+核验脚本（不依赖第三方库，使用项目 venv 即可）：
+
+```bash
+cd backend
+.venv/bin/python -I scripts/migration_scenario.py     # 服务层全场景（46 项）
+# 另起终端启动服务后：
+.venv/bin/python -I scripts/migration_http_check.py  # HTTP 接口全链路
+```
 
 ## 约定
 

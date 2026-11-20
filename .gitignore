@@ -85,6 +85,8 @@ desktop.ini
 *.db
 *.pid
 *.seed
+# 采集登记迁移库与 WAL 临时文件
+backend/data/
 
 # BEGIN S11 LOCAL SNAPSHOT EXCLUSIONS
 **/.git/**
